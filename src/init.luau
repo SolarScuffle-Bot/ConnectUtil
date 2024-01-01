@@ -125,11 +125,7 @@ function Module.yieldUntilAppearanceLoaded(character: Model)
 	end
 end
 
-function Module.appearance(
-	player: Player,
-	added: (Player, Model) -> (),
-	removing: (Player, Model) -> ()?
-): (RBXScriptConnection, RBXScriptConnection?)
+function Module.appearance(player: Player, added: (Player, Model) -> (), removing: (Player, Model) -> ()?)
 	local function callAdded(character)
 		Module.yieldUntilAppearanceLoaded(character)
 		added(player, character)
@@ -149,11 +145,7 @@ function Module.appearance(
 	return addedConnection, removingConnection
 end
 
-function Module.character(
-	player: Player,
-	added: (Player, Model) -> (),
-	removing: (Player, Model) -> ()?
-): (RBXScriptConnection, RBXScriptConnection?)
+function Module.character(player: Player, added: (Player, Model) -> (), removing: (Player, Model) -> ()?)
 	local addedConnection = player.CharacterAdded:Connect(function(character)
 		added(player, character)
 	end)
@@ -174,7 +166,7 @@ function Module.humanoid(
 	character: Model,
 	added: (Player, Model, Humanoid) -> (),
 	removing: (Player, Model, Humanoid) -> ()
-): (RBXScriptConnection, RBXScriptConnection)
+)
 	local player = Players:GetPlayerFromCharacter(character)
 	if not player then
 		error(
@@ -185,28 +177,50 @@ function Module.humanoid(
 	local humanoid = character:WaitForChild 'Humanoid' :: Humanoid
 	added(player, character, humanoid)
 
-	local diedConnection: RBXScriptConnection, removedConnection: RBXScriptConnection = nil, nil
+	local diedConnection: RBXScriptConnection?, removedConnection: RBXScriptConnection? = nil, nil
 
 	diedConnection = removing
 		and humanoid.Died:Once(function()
-			removedConnection:Disconnect()
+			(removedConnection :: RBXScriptConnection):Disconnect()
 			removing(player, character, humanoid)
 		end)
 
-	removedConnection = humanoid.AncestryChanged:Connect(function(_, parent)
-		if parent ~= character then
-			diedConnection:Disconnect()
-			removedConnection:Disconnect()
-			removing(player, character, humanoid)
-		end
-	end)
+	removedConnection = removing
+		and humanoid.AncestryChanged:Connect(function(_, parent)
+			if parent ~= character then
+				(diedConnection :: RBXScriptConnection):Disconnect();
+				(removedConnection :: RBXScriptConnection):Disconnect()
+				removing(player, character, humanoid)
+			end
+		end)
 
-	return diedConnection, removedConnection
+	return removedConnection, diedConnection
 end
 
 function Module.tag(tag: string, added: (Instance) -> (), removed: (Instance) -> ()?)
 	local addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(added)
 	local removedConnection = removed and CollectionService:GetInstanceRemovedSignal(tag):Connect(removed)
+	for _, tagged in CollectionService:GetTagged(tag) do
+		added(tagged)
+	end
+
+	return addedConnection, removedConnection
+end
+
+function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -> (), removed: (Instance) -> ()?)
+	local addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(function(other)
+		if other == instance then
+			added(instance)
+		end
+	end)
+
+	local removedConnection = removed
+		and CollectionService:GetInstanceRemovedSignal(tag):Connect(function(other)
+			if other == instance then
+				removed(instance)
+			end
+		end)
+
 	for _, tagged in CollectionService:GetTagged(tag) do
 		added(tagged)
 	end
@@ -329,6 +343,6 @@ function Module.disconnect<T>(connections: { [T]: Connection }, key: T?)
 	end
 end
 
-export type Connection = RBXScriptConnection | { Disconnect: (...any) -> () } | thread | Instance
+export type Connection = RBXScriptConnection | { Disconnect: (any) -> () } | thread | Instance
 
 return Module
