@@ -333,7 +333,7 @@ function Module.disconnect<T>(connections: { [T]: Connection }, key: T?)
 		end
 	else
 		for key, connection in connections do
-			if type(connection) == 'table' then
+			if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
 				Module.disconnect(connection)
 			else
 				disconnect(connection)
