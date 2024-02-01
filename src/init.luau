@@ -8,11 +8,11 @@ local StarterCharacter = StarterPlayer:FindFirstChild 'StarterCharacter'
 
 local Module = {}
 
-local function onPlayerTouched(callback: (player: Player, character: Model, humanoid: Humanoid?) -> ())
+local function onPlayerTouched(callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ())
 	return function(otherPart: BasePart)
 		local otherPlayer, otherCharacter, humanoid = Module.getPlayerFromPart(otherPart)
 		if otherPlayer and otherCharacter then
-			callback(otherPlayer, otherCharacter, humanoid)
+			callback(otherPlayer, otherCharacter, humanoid, otherPart)
 		end
 	end
 end
@@ -29,13 +29,13 @@ function Module.getPlayerFromPart(basePart: BasePart): (Player?, Model?, Humanoi
 	return player, character, humanoid
 end
 
-function Module.playerTouched(part: BasePart, callback: (player: Player, character: Model, humanoid: Humanoid?) -> ())
+function Module.playerTouched(part: BasePart, callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ())
 	return part.Touched:Connect(onPlayerTouched(callback))
 end
 
 function Module.playerTouchEnded(
 	part: BasePart,
-	callback: (player: Player, character: Model, humanoid: Humanoid?) -> ()
+	callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ()
 )
 	return part.TouchEnded:Connect(onPlayerTouched(callback))
 end
@@ -290,6 +290,7 @@ function Module.valueChanged<T>(instance: ValueBase, callback: (new: T, old: T) 
 		callback(new, old)
 		old = new
 	end)
+	
 	if not skip then
 		callback(old, old)
 	end
