@@ -290,7 +290,7 @@ function Module.valueChanged<T>(instance: ValueBase, callback: (new: T, old: T) 
 		callback(new, old)
 		old = new
 	end)
-	
+
 	if not skip then
 		callback(old, old)
 	end
