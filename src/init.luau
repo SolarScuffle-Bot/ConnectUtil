@@ -244,7 +244,7 @@ end
 function Module.attributeChanged(
 	instance: Instance,
 	attribute: string,
-	callback: (new: any?, old: any?) -> (),
+	callback: (new: any, old: any) -> (),
 	skip: boolean?
 )
 	local old = instance:GetAttribute(attribute)
@@ -261,7 +261,7 @@ end
 
 function Module.anyAttributeChanged(
 	instance: Instance,
-	callback: (attribute: string, new: any?, old: any?) -> (),
+	callback: (attribute: string, new: any, old: any) -> (),
 	skip: boolean?
 )
 	local old = {}
