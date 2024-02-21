@@ -40,23 +40,11 @@ function Module.playerTouchEnded(
 	return part.TouchEnded:Connect(onPlayerTouched(callback))
 end
 
--- local function signedDistance(part: BasePart, point: Vector3)
--- 	local localPoint = part.CFrame:Inverse() * point
--- 	local size = part.Size
--- 	return Vector3.new(
--- 		math.max(0, math.abs(localPoint.X) - size.X),
--- 		math.max(0, math.abs(localPoint.Y) - size.Y),
--- 		math.max(0, math.abs(localPoint.Z) - size.Z)
--- 	).Magnitude
--- end
-
 function Module.clicked(detector: ClickDetector, callback: (player: Player, character: Model, humanoid: Humanoid) -> ())
 	local parent = detector.Parent
 	if not parent then
 		error(`Trying to connect to a ClickDetector {detector:GetFullName()} without a parent!`)
 	end
-
-	-- local isAModel = parent:IsA 'Model'
 
 	return detector.MouseClick:Connect(function(player)
 		local character = player.Character
@@ -68,28 +56,6 @@ function Module.clicked(detector: ClickDetector, callback: (player: Player, char
 		if not head then
 			return
 		end
-
-		--if isAModel then
-		--	local minDistance = math.huge
-
-		--	for _, v in parent:GetDescendants() do
-		--		if v:IsA 'BasePart' then
-		--			local distance = signedDistance(v, head.Position)
-		--			minDistance = math.min(minDistance, distance)
-		--		end
-		--	end
-
-		--	if minDistance > detector.MaxActivationDistance then
-		--		player:Kick(`Stop it. I know your IP address. minDistance = {minDistance} > MaxActivationDistance = {detector.MaxActivationDistance}`)
-		--		return
-		--	end
-		--else
-		--	local distance = signedDistance(parent :: BasePart, head.Position)
-		--	if distance > detector.MaxActivationDistance then
-		--		player:Kick(`Stop it. I know your IP address. distance = {distance} > MaxActivationDistance = {detector.MaxActivationDistance}`)
-		--		return
-		--	end
-		--end
 
 		local humanoid = character:FindFirstChildWhichIsA 'Humanoid'
 		if not humanoid or humanoid.Health <= 0 or humanoid:GetState() == Enum.HumanoidStateType.Dead then
