@@ -8,17 +8,20 @@ local StarterCharacter = StarterPlayer:FindFirstChild 'StarterCharacter'
 
 local Module = {}
 
-local function onPlayerTouched(callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ())
+local function onPlayerTouched(callback: (other: BasePart, player: Player, character: Model, humanoid: Humanoid?) -> ())
 	return function(otherPart: BasePart)
 		local otherPlayer, otherCharacter, humanoid = Module.getPlayerFromPart(otherPart)
 		if otherPlayer and otherCharacter then
-			callback(otherPlayer, otherCharacter, humanoid, otherPart)
+			callback(otherPart, otherPlayer, otherCharacter, humanoid)
 		end
 	end
 end
 
-function Module.getPlayerFromPart(basePart: BasePart): (Player?, Model?, Humanoid?)
-	local character = basePart:FindFirstAncestorWhichIsA 'Model'
+--[=[
+	If the part is a character part, returns the character, the player the character is associated with, and the character's humanoid if present.
+]=]
+function Module.getPlayerFromPart(part: BasePart): (Player?, Model?, Humanoid?)
+	local character = part:FindFirstAncestorWhichIsA 'Model'
 	if not character or character == workspace then
 		return nil, nil, nil
 	end
@@ -29,34 +32,37 @@ function Module.getPlayerFromPart(basePart: BasePart): (Player?, Model?, Humanoi
 	return player, character, humanoid
 end
 
-function Module.playerTouched(part: BasePart, callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ())
+--[=[
+	Listens for Touched on the part.
+	`callback` is called only when the part is touched by a character.
+]=]
+function Module.playerTouched(
+	part: BasePart,
+	callback: (other: BasePart, player: Player, character: Model, humanoid: Humanoid?) -> ()
+)
 	return part.Touched:Connect(onPlayerTouched(callback))
 end
 
+--[=[
+	Listens for TouchEnded on the part.
+	`callback` is called only when the part is touched by a character.
+]=]
 function Module.playerTouchEnded(
 	part: BasePart,
-	callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ()
+	callback: (other: BasePart, player: Player, character: Model, humanoid: Humanoid?) -> ()
 )
 	return part.TouchEnded:Connect(onPlayerTouched(callback))
 end
 
--- local function signedDistance(part: BasePart, point: Vector3)
--- 	local localPoint = part.CFrame:Inverse() * point
--- 	local size = part.Size
--- 	return Vector3.new(
--- 		math.max(0, math.abs(localPoint.X) - size.X),
--- 		math.max(0, math.abs(localPoint.Y) - size.Y),
--- 		math.max(0, math.abs(localPoint.Z) - size.Z)
--- 	).Magnitude
--- end
-
+--[=[
+	Listens for the ClickDetector being clicked.
+	`callback` is called only when clicked by a player whose character has an alive humanoid.
+]=]
 function Module.clicked(detector: ClickDetector, callback: (player: Player, character: Model, humanoid: Humanoid) -> ())
 	local parent = detector.Parent
 	if not parent then
 		error(`Trying to connect to a ClickDetector {detector:GetFullName()} without a parent!`)
 	end
-
-	-- local isAModel = parent:IsA 'Model'
 
 	return detector.MouseClick:Connect(function(player)
 		local character = player.Character
@@ -69,28 +75,6 @@ function Module.clicked(detector: ClickDetector, callback: (player: Player, char
 			return
 		end
 
-		--if isAModel then
-		--	local minDistance = math.huge
-
-		--	for _, v in parent:GetDescendants() do
-		--		if v:IsA 'BasePart' then
-		--			local distance = signedDistance(v, head.Position)
-		--			minDistance = math.min(minDistance, distance)
-		--		end
-		--	end
-
-		--	if minDistance > detector.MaxActivationDistance then
-		--		player:Kick(`Stop it. I know your IP address. minDistance = {minDistance} > MaxActivationDistance = {detector.MaxActivationDistance}`)
-		--		return
-		--	end
-		--else
-		--	local distance = signedDistance(parent :: BasePart, head.Position)
-		--	if distance > detector.MaxActivationDistance then
-		--		player:Kick(`Stop it. I know your IP address. distance = {distance} > MaxActivationDistance = {detector.MaxActivationDistance}`)
-		--		return
-		--	end
-		--end
-
 		local humanoid = character:FindFirstChildWhichIsA 'Humanoid'
 		if not humanoid or humanoid.Health <= 0 or humanoid:GetState() == Enum.HumanoidStateType.Dead then
 			return
@@ -100,73 +84,132 @@ function Module.clicked(detector: ClickDetector, callback: (player: Player, char
 	end)
 end
 
-function Module.player(added: (Player) -> (), removing: (Player) -> ()?): (RBXScriptConnection, RBXScriptConnection?)
-	local addedConnection = Players.PlayerAdded:Connect(added)
-	local removingConnection = removing and Players.PlayerRemoving:Connect(removing)
-	for _, player in Players:GetPlayers() do
-		added(player)
+--[=[
+	Calls `added` when a player is added, and calls `removing` when a player is removing.
+	If `added` is specified, returns the `PlayerAdded` connection as the first return value.
+	If `removing` is specified, returns the `PlayerRemoving` connection as the second return value.
+]=]
+function Module.player(added: (Player) -> ()?, removing: (Player) -> ()?): (RBXScriptConnection?, RBXScriptConnection?)
+	local removingConnection: RBXScriptConnection?
+	if removing then
+		removingConnection = Players.PlayerRemoving:Connect(removing)
 	end
+
+	local addedConnection: RBXScriptConnection?
+	if added then
+		addedConnection = Players.PlayerAdded:Connect(added)
+
+		for _, player in Players:GetPlayers() do
+			added(player)
+		end
+	end
+
 	return addedConnection, removingConnection
 end
 
-function Module.yieldUntilAppearanceLoaded(character: Model)
-	if StarterCharacter then
-		for _, child in StarterCharacter:GetChildren() do
+--[=[
+	Yields until each child instance in the `prefab` Model is present in the character.
+	If `prefab` is not passed, uses the `StarterPlayer.StarterCharacter` if present.
+	Will error if the passed character doesn't belong to a player.
+]=]
+function Module.yieldUntilAppearanceLoaded(character: Model, prefab: Model?)
+	local player = Players:GetPlayerFromCharacter(character)
+	if not player then
+		error(
+			`{if typeof(character) == 'Instance' then character:GetFullName() else tostring(character)} is not a character of any Player!`
+		)
+	end
+
+	local characterPrefab = prefab or StarterCharacter
+	if characterPrefab then
+		for _, child in characterPrefab:GetChildren() do
 			character:WaitForChild(child.Name)
 		end
 		return
 	end
-
-	local player = Players:GetPlayerFromCharacter(character)
-	assert(player, `Passed character {character} with no associated Player`)
 
 	if not player:HasAppearanceLoaded() then
 		player.CharacterAppearanceLoaded:Wait()
 	end
 end
 
-function Module.appearance(player: Player, added: (Player, Model) -> (), removing: (Player, Model) -> ()?)
-	local function callAdded(character)
-		Module.yieldUntilAppearanceLoaded(character)
-		added(player, character)
+--[=[
+	Calls `added` whenever the player's character appearance has loaded, and calls `removing` whenever the player's character is being removed.
+	If `added` is specified, returns the `CharacterAdded` connection as the first return value.
+	If `removing` is specified, returns the `CharacterRemoving` connection as the second return value.
+]=]
+function Module.appearance(
+	player: Player,
+	added: (character: Model, player: Player) -> ()?,
+	removing: (character: Model, player: Player) -> ()?
+)
+	local removingConnection: RBXScriptConnection?
+	if removing then
+		removingConnection = player.CharacterRemoving:Connect(function(character)
+			removing(character, player)
+		end)
 	end
 
-	local addedConnection = player.CharacterAdded:Connect(callAdded)
+	local addedConnection: RBXScriptConnection?
+	if added then
+		local function callAdded(character)
+			Module.yieldUntilAppearanceLoaded(character)
+			added(character, player)
+		end
 
-	local removingConnection = removing
-		and player.CharacterRemoving:Connect(function(character)
-			removing(player, character)
-		end)
+		addedConnection = player.CharacterAdded:Connect(callAdded)
 
-	if player.Character then
-		callAdded(player.Character)
+		local character = player.Character
+		if character then
+			callAdded(character)
+		end
 	end
 
 	return addedConnection, removingConnection
 end
 
-function Module.character(player: Player, added: (Player, Model) -> (), removing: (Player, Model) -> ()?)
-	local addedConnection = player.CharacterAdded:Connect(function(character)
-		added(player, character)
-	end)
+--[=[
+	Calls `added` whenever the player's character is added, and calls `removing` whenever the player's character is being removed.
+	If `added` is specified, returns the `CharacterAdded` connection as the first return value.
+	If `removing` is specified, returns the `CharacterRemoving` connection as the second return value.
+]=]
+function Module.character(
+	player: Player,
+	added: (character: Model, player: Player) -> ()?,
+	removing: (character: Model, player: Player) -> ()?
+): (RBXScriptConnection?, RBXScriptConnection?)
+	local removingConnection: RBXScriptConnection?
+	if removing then
+		removingConnection = player.CharacterRemoving:Connect(function(character)
+			removing(character, player)
+		end)
+	end
 
-	local removingConnection = removing
-		and player.CharacterRemoving:Connect(function(character)
-			removing(player, character)
+	local addedConnection: RBXScriptConnection?
+	if added then
+		addedConnection = player.CharacterAdded:Connect(function(character)
+			added(character, player)
 		end)
 
-	if player.Character then
-		added(player, player.Character)
+		local character = player.Character
+		if character then
+			added(character, player)
+		end
 	end
 
 	return addedConnection, removingConnection
 end
 
+--[=[
+	Calls `added` once a Humanoid exists under the character, and calls `removing` *once* when either the Humanoid dies or is removed.
+	If `removing` is provided, returns the removed and death connections in order.
+	Will error if the passed character doesn't belong to a player.
+]=]
 function Module.humanoid(
 	character: Model,
-	added: (Player, Model, Humanoid) -> (),
-	removing: (Player, Model, Humanoid) -> ()
-)
+	added: (humanoid: Humanoid, character: Model, player: Player) -> ()?,
+	removing: (humanoid: Humanoid, character: Model, player: Player) -> ()?
+): (RBXScriptConnection?, RBXScriptConnection?)
 	local player = Players:GetPlayerFromCharacter(character)
 	if not player then
 		error(
@@ -175,63 +218,93 @@ function Module.humanoid(
 	end
 
 	local humanoid = character:WaitForChild 'Humanoid' :: Humanoid
-	added(player, character, humanoid)
+	if added then
+		added(humanoid, character, player)
+	end
 
-	local diedConnection: RBXScriptConnection?, removedConnection: RBXScriptConnection? = nil, nil
-
-	diedConnection = removing
-		and humanoid.Died:Once(function()
+	local diedConnection: RBXScriptConnection?, removedConnection: RBXScriptConnection?
+	if removing then
+		diedConnection = humanoid.Died:Once(function()
 			(removedConnection :: RBXScriptConnection):Disconnect()
-			removing(player, character, humanoid)
+			removing(humanoid, character, player)
 		end)
 
-	removedConnection = removing
-		and humanoid.AncestryChanged:Connect(function(_, parent)
+		removedConnection = humanoid.AncestryChanged:Connect(function(_, parent)
 			if parent ~= character then
 				(diedConnection :: RBXScriptConnection):Disconnect();
 				(removedConnection :: RBXScriptConnection):Disconnect()
-				removing(player, character, humanoid)
+				removing(humanoid, character, player)
 			end
 		end)
+	end
 
 	return removedConnection, diedConnection
 end
 
-function Module.tag(tag: string, added: (Instance) -> (), removed: (Instance) -> ()?)
-	local addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(added)
-	local removedConnection = removed and CollectionService:GetInstanceRemovedSignal(tag):Connect(removed)
-	for _, tagged in CollectionService:GetTagged(tag) do
-		added(tagged)
+--[=[
+	Listens for a tag being added to and removed from instances.
+	The `added` callback is called with every tagged instance immediately.
+	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
+	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
+]=]
+function Module.tag(tag: string, added: (Instance) -> ()?, removed: (Instance) -> ()?)
+	local removedConnection: RBXScriptConnection?
+	if removed then
+		removedConnection = CollectionService:GetInstanceRemovedSignal(tag):Connect(removed)
+	end
+
+	local addedConnection: RBXScriptConnection?
+	if added then
+		addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(added)
+		for _, tagged in CollectionService:GetTagged(tag) do
+			added(tagged)
+		end
 	end
 
 	return addedConnection, removedConnection
 end
 
-function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -> (), removed: (Instance) -> ()?)
-	local addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(function(other)
-		if other == instance then
-			added(instance)
-		end
-	end)
-
-	local removedConnection = removed
-		and CollectionService:GetInstanceRemovedSignal(tag):Connect(function(other)
+--[=[
+	Listens for the specified tag being added to and removed from the instance.
+	The `added` callback is called immediately if the tag is present on the instance.
+	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
+	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
+]=]
+function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -> ()?, removed: (Instance) -> ()?)
+	local removedConnection: RBXScriptConnection?
+	if removed then
+		removedConnection = CollectionService:GetInstanceRemovedSignal(tag):Connect(function(other)
 			if other == instance then
 				removed(instance)
 			end
 		end)
+	end
 
-	for _, tagged in CollectionService:GetTagged(tag) do
-		added(tagged)
+	local addedConnection: RBXScriptConnection?
+	if added then
+		addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(function(other)
+			if other == instance then
+				added(instance)
+			end
+		end)
+		
+		for _, tagged in CollectionService:GetTagged(tag) do
+			added(tagged)
+		end
 	end
 
 	return addedConnection, removedConnection
 end
 
+--[=[
+	Listens for the specified property being changed on the instance.
+	The value from the last time the property was changed is passed to the callback.
+	The callback is called with the current value immediately (passing the current value for the old one), unless `skip` is set to true.
+]=]
 function Module.propertyChanged<T>(instance: Instance, property: string, callback: (new: T, old: T) -> (), skip: boolean?)
-	local old = instance[property] :: T
+	local old = (instance :: any)[property] :: T
 	local connection = instance:GetPropertyChangedSignal(property):Connect(function()
-		local new = instance[property] :: T
+		local new = (instance :: any)[property] :: T
 		callback(new, old)
 		old = new
 	end)
@@ -241,6 +314,11 @@ function Module.propertyChanged<T>(instance: Instance, property: string, callbac
 	return connection
 end
 
+--[=[
+	Listens for the specified attribute being changed on the instance.
+	The value from the last time the attribute was changed is passed to the callback.
+	The callback is called with the current value immediately (passing the current value for the old one), unless `skip` is set to true.
+]=]
 function Module.attributeChanged(
 	instance: Instance,
 	attribute: string,
@@ -259,6 +337,11 @@ function Module.attributeChanged(
 	return connection
 end
 
+--[=[
+	Listens for any attribute being changed on the instance.
+	The value from the last time an attribute was changed is passed to the callback.
+	The callback is called with the current value of every attribute immediately (passing the current value for the old one), unless `skip` is set to true.
+]=]
 function Module.anyAttributeChanged(
 	instance: Instance,
 	callback: (attribute: string, new: any, old: any) -> (),
@@ -284,9 +367,14 @@ function Module.anyAttributeChanged(
 	return connection
 end
 
+--[=[
+	Listens for the Value instance being changed.
+	The value from the last time the `Changed` event fired is passed to the callback.
+	The callback is called with the current value immediately (passing the current value for the old one), unless `skip` is set to true.
+]=]
 function Module.valueChanged<T>(instance: ValueBase, callback: (new: T, old: T) -> (), skip: boolean?)
-	local old = instance.Value :: T
-	local connection = instance.Changed:Connect(function(new: T)
+	local old = (instance :: any).Value :: T
+	local connection = instance.Changed:Connect(function(new: any)
 		callback(new, old)
 		old = new
 	end)
@@ -297,18 +385,10 @@ function Module.valueChanged<T>(instance: ValueBase, callback: (new: T, old: T) 
 	return connection
 end
 
-function Module.event(signal: RBXScriptSignal, callback: () -> (), skip: boolean?)
-	local connection = signal:Connect(callback)
-	if not skip then
-		callback()
-	end
-	return connection
-end
-
 local function disconnect(connection: Connection)
 	if
 		typeof(connection) == 'RBXScriptConnection'
-		or (typeof(connection) == 'table' and type(connection.Disconnect) == 'function')
+		or type(connection) == 'table' and type(connection.Disconnect) == 'function'
 	then
 		(connection :: RBXScriptConnection):Disconnect()
 	elseif typeof(connection) == 'thread' and coroutine.status(connection) ~= 'normal' then
@@ -323,27 +403,63 @@ local function disconnect(connection: Connection)
 	end
 end
 
-function Module.disconnect<T>(connections: { [T]: Connection }, key: T?)
-	if key then
-		local connection = connections[key]
+--[=[
+	Recursively disconnects all connections in the table. Removes all entries except for nested tables.
+]=]
+function Module.clean(connections: { [any]: Connection })
+	for key, connection in connections do
 		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-			Module.disconnect(connection)
-		elseif connection then
+			Module.clean(connection :: { [any]: Connection })
+		else
 			disconnect(connection)
 			connections[key] = nil
-		end
-	else
-		for key, connection in connections do
-			if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-				Module.disconnect(connection)
-			else
-				disconnect(connection)
-				connections[key] = nil
-			end
 		end
 	end
 end
 
-export type Connection = RBXScriptConnection | { Disconnect: (any) -> () } | thread | Instance
+--[=[
+	Similar to `clean`, but removes nested tables.
+]=]
+function Module.empty(connections: { [any]: Connection })
+	Module.clean(connections)
+	table.clear(connections)
+end
+
+--[=[
+	Calls `clean` on the value at the specified keys. Does nothing if the value is nil.
+	Does not remove the connection if it's a nested table.
+]=]
+function Module.cleanKeys<T...>(connections: { [any]: Connection }, ...: T...)
+	-- Type ... as generic so user code gets a warning when it doesn't specify the parameter
+	-- However, don't give the `connections` table an indexer of `[T]`, since that screws with
+	-- the type inference of tables passed to this function
+
+	for _, key: any in table.pack(...) do
+		local connection = connections[key]
+		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
+			Module.clean(connection :: { [any]: Connection })
+		elseif connection then
+			disconnect(connection)
+			connections[key] = nil
+		end
+	end
+end
+
+--[=[
+	Similar to `cleanKeys`, but removes the connection regardless of if it's a nested table.
+]=]
+function Module.emptyKeys<T...>(connections: { [any]: Connection }, ...: T...)
+	Module.cleanKeys(connections, ...)
+	for _, key: any in table.pack(...) do
+		connections[key] = nil
+	end
+end
+
+export type Connection =
+	RBXScriptConnection
+	| { Disconnect: (any) -> () }
+	| thread
+	| Instance
+	| () -> () | { [any]: Connection }
 
 return Module
