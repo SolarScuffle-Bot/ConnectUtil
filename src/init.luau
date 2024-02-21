@@ -29,7 +29,10 @@ function Module.getPlayerFromPart(basePart: BasePart): (Player?, Model?, Humanoi
 	return player, character, humanoid
 end
 
-function Module.playerTouched(part: BasePart, callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ())
+function Module.playerTouched(
+	part: BasePart,
+	callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ()
+)
 	return part.Touched:Connect(onPlayerTouched(callback))
 end
 
@@ -256,7 +259,7 @@ function Module.valueChanged<T>(instance: ValueBase, callback: (new: T, old: T) 
 		callback(new, old)
 		old = new
 	end)
-	
+
 	if not skip then
 		callback(old, old)
 	end
@@ -272,7 +275,8 @@ function Module.event(signal: RBXScriptSignal, callback: () -> (), skip: boolean
 end
 
 local function disconnect(connection: Connection)
-	if typeof(connection) == 'RBXScriptConnection'
+	if
+		typeof(connection) == 'RBXScriptConnection'
 		or type(connection) == 'table' and type(connection.Disconnect) == 'function'
 	then
 		(connection :: RBXScriptConnection):Disconnect()
@@ -318,7 +322,7 @@ end
 -- However, don't give the `connections` table an indexer of `[T]`, since that screws with
 -- the type inference of tables passed to this function
 function Module.cleanKeys<T...>(connections: { [any]: Connection }, ...: T...)
-	for _, key in { select(1, ...) } do  -- Using `select` is the only way to silence this type error
+	for _, key in { select(1, ...) } do -- Using `select` is the only way to silence this type error
 		local connection = connections[key]
 		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
 			Module.clean(connection :: { [any]: Connection })
@@ -339,11 +343,11 @@ function Module.emptyKeys<T...>(connections: { [any]: Connection }, ...: T...)
 	end
 end
 
-export type Connection = RBXScriptConnection
+export type Connection =
+	RBXScriptConnection
 	| { Disconnect: (any) -> () }
 	| thread
 	| Instance
-	| () -> ()
-	| { [any]: Connection }
+	| () -> () | { [any]: Connection }
 
 return Module
