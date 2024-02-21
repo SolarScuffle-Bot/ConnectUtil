@@ -229,9 +229,9 @@ function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -
 end
 
 function Module.propertyChanged<T>(instance: Instance, property: string, callback: (new: T, old: T) -> (), skip: boolean?)
-	local old = instance[property] :: T
+	local old = (instance :: any)[property] :: T
 	local connection = instance:GetPropertyChangedSignal(property):Connect(function()
-		local new = instance[property] :: T
+		local new = (instance :: any)[property] :: T
 		callback(new, old)
 		old = new
 	end)
@@ -285,12 +285,12 @@ function Module.anyAttributeChanged(
 end
 
 function Module.valueChanged<T>(instance: ValueBase, callback: (new: T, old: T) -> (), skip: boolean?)
-	local old = instance.Value :: T
-	local connection = instance.Changed:Connect(function(new: T)
+	local old = (instance :: any).Value :: T
+	local connection = instance.Changed:Connect(function(new: any)
 		callback(new, old)
 		old = new
 	end)
-
+	
 	if not skip then
 		callback(old, old)
 	end
@@ -306,9 +306,8 @@ function Module.event(signal: RBXScriptSignal, callback: () -> (), skip: boolean
 end
 
 local function disconnect(connection: Connection)
-	if
-		typeof(connection) == 'RBXScriptConnection'
-		or (typeof(connection) == 'table' and type(connection.Disconnect) == 'function')
+	if typeof(connection) == 'RBXScriptConnection'
+		or type(connection) == 'table' and type(connection.Disconnect) == 'function'
 	then
 		(connection :: RBXScriptConnection):Disconnect()
 	elseif typeof(connection) == 'thread' and coroutine.status(connection) ~= 'normal' then
@@ -323,27 +322,58 @@ local function disconnect(connection: Connection)
 	end
 end
 
-function Module.disconnect<T>(connections: { [T]: Connection }, key: T?)
-	if key then
-		local connection = connections[key]
+--[[
+	Recursively disconnects all connections in the table. Removes all entries except for nested tables.
+]]
+function Module.disconnect(connections: { [any]: Connection })
+	for key, connection in connections do
 		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-			Module.disconnect(connection)
-		elseif connection then
+			Module.disconnect(connection :: { [any]: Connection })
+		else
 			disconnect(connection)
 			connections[key] = nil
-		end
-	else
-		for key, connection in connections do
-			if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-				Module.disconnect(connection)
-			else
-				disconnect(connection)
-				connections[key] = nil
-			end
 		end
 	end
 end
 
-export type Connection = RBXScriptConnection | { Disconnect: (any) -> () } | thread | Instance
+--[[
+	Similar to `disconnect`, but removes nested tables.
+]]
+function Module.clear(connections: { [any]: Connection })
+	Module.disconnect(connections)
+	table.clear(connections)
+end
+
+--[[
+	Calls `disconnect` on the value at the specified key. Does nothing if the value is nil.
+	Does not remove the connection if it's a nested table.
+]]
+-- Type `key` as generic so user code gets a warning when it doesn't specify the parameter
+-- However, don't give the `connections` table an indexer of `[T]`, since that screws with
+-- the type inference of tables passed to this function
+function Module.disconnectKey<T>(connections: { [any]: Connection }, key: T)
+	local connection = connections[key]
+	if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
+		Module.disconnect(connection :: { [any]: Connection })
+	elseif connection then
+		disconnect(connection)
+		connections[key] = nil
+	end
+end
+
+--[[
+	Similar to `disconnectKey`, but removes the connection regardless of if it's a nested table.
+]]
+function Module.clearKey<T>(connections: { [any]: Connection }, key: T)
+	Module.disconnectKey(connections, key)
+	connections[key] = nil
+end
+
+export type Connection = RBXScriptConnection
+	| { Disconnect: (any) -> () }
+	| thread
+	| Instance
+	| () -> ()
+	| { [any]: Connection }
 
 return Module
