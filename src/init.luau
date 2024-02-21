@@ -345,28 +345,32 @@ function Module.empty(connections: { [any]: Connection })
 end
 
 --[[
-	Calls `clean` on the value at the specified key. Does nothing if the value is nil.
+	Calls `clean` on the value at the specified keys. Does nothing if the value is nil.
 	Does not remove the connection if it's a nested table.
 ]]
--- Type `key` as generic so user code gets a warning when it doesn't specify the parameter
+-- Type ... as generic so user code gets a warning when it doesn't specify the parameter
 -- However, don't give the `connections` table an indexer of `[T]`, since that screws with
 -- the type inference of tables passed to this function
-function Module.cleanKey<T>(connections: { [any]: Connection }, key: T)
-	local connection = connections[key]
-	if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-		Module.clean(connection :: { [any]: Connection })
-	elseif connection then
-		disconnect(connection)
-		connections[key] = nil
+function Module.cleanKeys<T...>(connections: { [any]: Connection }, ...: T...)
+	for _, key in { select(1, ...) } do  -- Using `select` is the only way to silence this type error
+		local connection = connections[key]
+		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
+			Module.clean(connection :: { [any]: Connection })
+		elseif connection then
+			disconnect(connection)
+			connections[key] = nil
+		end
 	end
 end
 
 --[[
-	Similar to `cleanKey`, but removes the connection regardless of if it's a nested table.
+	Similar to `cleanKeys`, but removes the connection regardless of if it's a nested table.
 ]]
-function Module.emptyKey<T>(connections: { [any]: Connection }, key: T)
-	Module.cleanKey(connections, key)
-	connections[key] = nil
+function Module.emptyKeys<T...>(connections: { [any]: Connection }, ...: T...)
+	Module.cleanKeys(connections, ...)
+	for _, key in { select(1, ...) } do
+		connections[key] = nil
+	end
 end
 
 export type Connection = RBXScriptConnection
