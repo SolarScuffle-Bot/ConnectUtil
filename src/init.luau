@@ -325,10 +325,10 @@ end
 --[[
 	Recursively disconnects all connections in the table. Removes all entries except for nested tables.
 ]]
-function Module.disconnect(connections: { [any]: Connection })
+function Module.clean(connections: { [any]: Connection })
 	for key, connection in connections do
 		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-			Module.disconnect(connection :: { [any]: Connection })
+			Module.clean(connection :: { [any]: Connection })
 		else
 			disconnect(connection)
 			connections[key] = nil
@@ -337,24 +337,24 @@ function Module.disconnect(connections: { [any]: Connection })
 end
 
 --[[
-	Similar to `disconnect`, but removes nested tables.
+	Similar to `clean`, but removes nested tables.
 ]]
-function Module.clear(connections: { [any]: Connection })
-	Module.disconnect(connections)
+function Module.empty(connections: { [any]: Connection })
+	Module.clean(connections)
 	table.clear(connections)
 end
 
 --[[
-	Calls `disconnect` on the value at the specified key. Does nothing if the value is nil.
+	Calls `clean` on the value at the specified key. Does nothing if the value is nil.
 	Does not remove the connection if it's a nested table.
 ]]
 -- Type `key` as generic so user code gets a warning when it doesn't specify the parameter
 -- However, don't give the `connections` table an indexer of `[T]`, since that screws with
 -- the type inference of tables passed to this function
-function Module.disconnectKey<T>(connections: { [any]: Connection }, key: T)
+function Module.cleanKey<T>(connections: { [any]: Connection }, key: T)
 	local connection = connections[key]
 	if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-		Module.disconnect(connection :: { [any]: Connection })
+		Module.clean(connection :: { [any]: Connection })
 	elseif connection then
 		disconnect(connection)
 		connections[key] = nil
@@ -362,10 +362,10 @@ function Module.disconnectKey<T>(connections: { [any]: Connection }, key: T)
 end
 
 --[[
-	Similar to `disconnectKey`, but removes the connection regardless of if it's a nested table.
+	Similar to `cleanKey`, but removes the connection regardless of if it's a nested table.
 ]]
-function Module.clearKey<T>(connections: { [any]: Connection }, key: T)
-	Module.disconnectKey(connections, key)
+function Module.emptyKey<T>(connections: { [any]: Connection }, key: T)
+	Module.cleanKey(connections, key)
 	connections[key] = nil
 end
 
