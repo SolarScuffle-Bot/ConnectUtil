@@ -8,11 +8,11 @@ local StarterCharacter = StarterPlayer:FindFirstChild 'StarterCharacter'
 
 local Module = {}
 
-local function onPlayerTouched(callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ())
+local function onPlayerTouched(callback: (other: BasePart, player: Player, character: Model, humanoid: Humanoid?) -> ())
 	return function(otherPart: BasePart)
 		local otherPlayer, otherCharacter, humanoid = Module.getPlayerFromPart(otherPart)
 		if otherPlayer and otherCharacter then
-			callback(otherPlayer, otherCharacter, humanoid, otherPart)
+			callback(otherPart, otherPlayer, otherCharacter, humanoid)
 		end
 	end
 end
@@ -20,8 +20,8 @@ end
 --[=[
 	If the part is a character part, returns the character, the player the character is associated with, and the character's humanoid if present.
 ]=]
-function Module.getPlayerFromPart(basePart: BasePart): (Player?, Model?, Humanoid?)
-	local character = basePart:FindFirstAncestorWhichIsA 'Model'
+function Module.getPlayerFromPart(part: BasePart): (Player?, Model?, Humanoid?)
+	local character = part:FindFirstAncestorWhichIsA 'Model'
 	if not character or character == workspace then
 		return nil, nil, nil
 	end
@@ -38,7 +38,7 @@ end
 ]=]
 function Module.playerTouched(
 	part: BasePart,
-	callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ()
+	callback: (other: BasePart, player: Player, character: Model, humanoid: Humanoid?) -> ()
 )
 	return part.Touched:Connect(onPlayerTouched(callback))
 end
@@ -49,7 +49,7 @@ end
 ]=]
 function Module.playerTouchEnded(
 	part: BasePart,
-	callback: (player: Player, character: Model, humanoid: Humanoid?, part: BasePart) -> ()
+	callback: (other: BasePart, player: Player, character: Model, humanoid: Humanoid?) -> ()
 )
 	return part.TouchEnded:Connect(onPlayerTouched(callback))
 end
