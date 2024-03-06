@@ -399,12 +399,13 @@ local function disconnect(connection: Connection)
 		end
 		pcall(connection.Destroy, connection)
 	elseif typeof(connection) == 'function' then
-		task.spawn(connection)
+		connection()
 	end
 end
 
 --[=[
 	Recursively disconnects all connections in the table. Removes all entries except for nested tables.
+	Warning: If the table contains a yielding function, this function will yield!
 ]=]
 function Module.clean(connections: { [any]: Connection })
 	for key, connection in connections do
@@ -419,6 +420,7 @@ end
 
 --[=[
 	Similar to `clean`, but removes nested tables.
+	Warning: If the table contains a yielding function, this function will yield!
 ]=]
 function Module.empty(connections: { [any]: Connection })
 	Module.clean(connections)
@@ -428,6 +430,7 @@ end
 --[=[
 	Calls `clean` on the value at the specified keys. Does nothing if the value is nil.
 	Does not remove the connection if it's a nested table.
+	Warning: If the table contains a yielding function, this function will yield!
 ]=]
 function Module.cleanKeys<T...>(connections: { [any]: Connection }, ...: T...)
 	-- Type ... as generic so user code gets a warning when it doesn't specify the parameter
@@ -447,6 +450,7 @@ end
 
 --[=[
 	Similar to `cleanKeys`, but removes the connection regardless of if it's a nested table.
+	Warning: If the table contains a yielding function, this function will yield!
 ]=]
 function Module.emptyKeys<T...>(connections: { [any]: Connection }, ...: T...)
 	Module.cleanKeys(connections, ...)
