@@ -399,7 +399,7 @@ local function disconnect(connection: Connection)
 		end
 		pcall(connection.Destroy, connection)
 	elseif typeof(connection) == 'function' then
-		connection()
+		task.spawn(connection)
 	end
 end
 
