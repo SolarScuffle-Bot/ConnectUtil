@@ -18,16 +18,20 @@ local function onPlayerTouched(callback: (other: BasePart, player: Player, chara
 end
 
 --[=[
-	If the part is a character part, returns the character, the player the character is associated with, and the character's humanoid if present.
+	If the part is a character part, returns the player who owns that part, that player's character, and the character's humanoid (if present).
 ]=]
 function Module.getPlayerFromPart(part: BasePart): (Player?, Model?, Humanoid?)
 	local character = part:FindFirstAncestorWhichIsA 'Model'
-	if not character or character == workspace then
+	if not character then
 		return nil, nil, nil
 	end
 
 	local player = Players:GetPlayerFromCharacter(character)
-	local humanoid = character:FindFirstChildWhichIsA 'Humanoid'
+	if not player then
+		return nil, nil, nil
+	end
+
+	local humanoid = character:FindFirstAncestorWhichIsA 'Humanoid'
 
 	return player, character, humanoid
 end
