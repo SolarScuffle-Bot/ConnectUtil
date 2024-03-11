@@ -287,7 +287,7 @@ function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -
 				added(instance)
 			end
 		end)
-		
+
 		for _, tagged in CollectionService:GetTagged(tag) do
 			added(tagged)
 		end
@@ -462,8 +462,9 @@ end
 export type Connection =
 	RBXScriptConnection
 	| { Disconnect: (any) -> () }
+	| { [any]: Connection }
 	| thread
 	| Instance
-	| () -> () | { [any]: Connection }
+	| () -> ()
 
 return Module
