@@ -31,7 +31,7 @@ function Module.getPlayerFromPart(part: BasePart): (Player?, Model?, Humanoid?)
 		return nil, nil, nil
 	end
 
-	local humanoid = character:FindFirstAncestorWhichIsA 'Humanoid'
+	local humanoid = character:FindFirstChildWhichIsA 'Humanoid'
 
 	return player, character, humanoid
 end
