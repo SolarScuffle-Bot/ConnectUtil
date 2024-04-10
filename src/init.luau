@@ -89,6 +89,131 @@ function Module.clicked(detector: ClickDetector, callback: (player: Player, char
 end
 
 --[=[
+	Connects to a signal and fires the callback immediately.
+]=]
+function Module.event(event: RBXScriptSignal | { Connect: (any, (...any) -> ()) -> (any) -> ()}, callback: () -> ())
+	local connection = event:Connect(callback) :: RBXScriptConnection
+	callback()
+	return connection
+end
+
+--[=[
+	Resumes the thread after all passed signals, tweens, sounds, animations, signals, and functions are called, fired, or finished.
+	Call `coroutine.yield()` after calling this function to yield the thread, and wait for this to resume it again.
+]=]
+function Module.resumeAfterAll(...: RBXScriptSignal | Tween | Sound | AnimationTrack | () -> () | { Once: ((any, () -> ()) -> { Disconnect: (any) -> () })?, Connect: (any, () -> ()) -> { Disconnect: (any) -> () } })
+    local args = { ... }
+    local count = #args
+    local currentThread = coroutine.running()
+
+    local function tryResume()
+        count -= 1
+        if count == 0 then
+            task.spawn(currentThread)
+        end
+    end
+
+    local connections = {} :: { any }
+
+    for i, v in args do
+        if type(v) == 'function' then
+            continue
+        elseif type(v) == 'table' then
+            if v.Once then
+                connections[i] = v:Once(tryResume)
+            else
+                local connection
+                connection = v:Connect(function()
+                    connection:Disconnect()
+                    tryResume()
+                end)
+            end
+        elseif typeof(v) == 'RBXScriptSignal' then
+            connections[i] = v:Once(tryResume)
+        elseif v:IsA 'Tween' then
+            connections[i] = v.Completed:Once(tryResume)
+        elseif v:IsA 'Sound' then
+            connections[i] = v.Ended:Once(tryResume)
+        elseif v:IsA 'AnimationTrack' then
+            connections[i] = v.Ended:Once(tryResume)
+        else
+            connections[i] = v:Once(tryResume)
+        end
+    end
+
+    for i, v in args do
+        if type(v) == 'table' or typeof(v) == 'RBXScriptSignal' then
+            continue
+        elseif type(v) == 'function' then
+            connections[i] = task.defer(function()
+                v()
+                tryResume()
+            end)
+        else
+            v:Play()
+        end
+    end
+
+    return table.unpack(connections)
+end
+
+--[=[
+	Resumes the thread after the first passed signals, tweens, sounds, animations, signals, and functions are called, fired, or finished.
+	Call `coroutine.yield()` after calling this function to yield the thread, and wait for this to resume it again.
+]=]
+function Module.resumeAfterFirst(...: RBXScriptSignal | Tween | Sound | AnimationTrack | () -> () | { Once: ((any, () -> ()) -> { Disconnect: (any) -> () })?, Connect: (any, () -> ()) -> { Disconnect: (any) -> () } })
+    local args = { ... }
+
+    local currentThread = coroutine.running()
+    local function tryResume()
+        task.spawn(currentThread)
+    end
+
+    local connections = {} :: { any }
+
+    for i, v in args do
+        if type(v) == 'function' then
+            continue
+        elseif type(v) == 'table' then
+            if v.Once then
+                connections[i] = v:Once(tryResume)
+            else
+                local connection
+                connection = v:Connect(function()
+                    connection:Disconnect()
+                    tryResume()
+                end)
+            end
+        elseif typeof(v) == 'RBXScriptSignal' then
+            connections[i] = v:Once(tryResume)
+        elseif v:IsA 'Tween' then
+            connections[i] = v.Completed:Once(tryResume)
+        elseif v:IsA 'Sound' then
+            connections[i] = v.Ended:Once(tryResume)
+        elseif v:IsA 'AnimationTrack' then
+            connections[i] = v.Ended:Once(tryResume)
+        else
+            connections[i] = v:Once(tryResume)
+        end
+    end
+
+    for i, v in args do
+        if type(v) == 'table' or typeof(v) == 'RBXScriptSignal' then
+            continue
+        elseif type(v) == 'function' then
+            connections[i] = task.defer(function()
+                v()
+                tryResume()
+            end)
+        else
+            v:Play()
+        end
+    end
+
+    return table.unpack(connections)
+end
+
+--[=[
 	Calls `added` when a player is added, and calls `removing` when a player is removing.
 	If `added` is specified, returns the `PlayerAdded` connection as the first return value.
 	If `removing` is specified, returns the `PlayerRemoving` connection as the second return value.
