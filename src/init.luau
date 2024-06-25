@@ -603,12 +603,6 @@ function Module.emptyKeys<T...>(connections: { [any]: Connection }, ...: T...)
 	end
 end
 
-export type Connection =
-	RBXScriptConnection
-	| { Disconnect: (any) -> () }
-	| { [any]: Connection }
-	| thread
-	| Instance
-	| () -> ()
+export type Connection = any
 
 return Module
