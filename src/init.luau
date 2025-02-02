@@ -104,10 +104,10 @@ end
 function Module.resumeAfterAll(
 	...: RBXScriptSignal | Tween | Sound | AnimationTrack | (
 	) -> ()
-		| {
-			Once: ((any, () -> ()) -> { Disconnect: (any) -> () })?,
-			Connect: (any, () -> ()) -> { Disconnect: (any) -> () },
-		}
+	| {
+		Once: ((any, () -> ()) -> { Disconnect: (any) -> () })?,
+		Connect: (any, () -> ()) -> { Disconnect: (any) -> () },
+	}
 )
 	local args = { ... }
 	local count = #args
@@ -171,10 +171,10 @@ end
 function Module.resumeAfterFirst(
 	...: RBXScriptSignal | Tween | Sound | AnimationTrack | (
 	) -> ()
-		| {
-			Once: ((any, () -> ()) -> { Disconnect: (any) -> () })?,
-			Connect: (any, () -> ()) -> { Disconnect: (any) -> () },
-		}
+	| {
+		Once: ((any, () -> ()) -> { Disconnect: (any) -> () })?,
+		Connect: (any, () -> ()) -> { Disconnect: (any) -> () },
+	}
 )
 	local args = { ... }
 
@@ -392,16 +392,39 @@ end
 	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
 ]=]
 function Module.tag(tag: string, added: (Instance) -> ()?, removed: (Instance) -> ()?)
-	local removedConnection: RBXScriptConnection?
+	local removedConnection: RBXScriptConnection? = nil
 	if removed then
 		removedConnection = CollectionService:GetInstanceRemovedSignal(tag):Connect(removed)
 	end
 
-	local addedConnection: RBXScriptConnection?
+	local addedConnection: RBXScriptConnection? = nil
 	if added then
 		addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(added)
 		for _, tagged in CollectionService:GetTagged(tag) do
 			added(tagged)
+		end
+	end
+
+	return addedConnection, removedConnection
+end
+
+--[=[
+	Listens for players being added to and removed from teams.
+	The `added` callback is called with every player in the team immediately.
+	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
+	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
+]=]
+function Module.team(team: Team, added: (Player) -> ()?, removed: (Player) -> ()?)
+	local removedConnection: RBXScriptConnection? = nil
+	if removed then
+		removedConnection = team.PlayerRemoved:Connect(removed)
+	end
+
+	local addedConnection: RBXScriptConnection? = nil
+	if added then
+		addedConnection = team.PlayerAdded:Connect(added)
+		for _, player in team:GetPlayers() do
+			added(player :: Player)
 		end
 	end
 
@@ -535,7 +558,7 @@ local function disconnect(connection: Connection)
 		or type(connection) == 'table' and type(connection.Disconnect) == 'function'
 	then
 		(connection :: RBXScriptConnection):Disconnect()
-	elseif typeof(connection) == 'thread' and coroutine.status(connection) ~= 'normal' then
+	elseif typeof(connection) == 'thread' then
 		task.cancel(connection)
 	elseif typeof(connection) == 'Instance' then
 		if connection:IsA 'Tween' then
@@ -544,6 +567,8 @@ local function disconnect(connection: Connection)
 		pcall(connection.Destroy, connection)
 	elseif typeof(connection) == 'function' then
 		connection()
+	else
+		warn("Didn't disconnect")
 	end
 end
 
