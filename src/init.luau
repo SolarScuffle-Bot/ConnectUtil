@@ -6,6 +6,8 @@ local StarterPlayer = game:GetService 'StarterPlayer'
 
 local StarterCharacter = StarterPlayer:FindFirstChild 'StarterCharacter'
 
+export type Table = { [any]: any }
+
 local Module = {}
 
 local function onPlayerTouched(callback: (other: BasePart, player: Player, character: Model, humanoid: Humanoid?) -> ())
@@ -464,6 +466,50 @@ function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -
 end
 
 --[=[
+	Listens for children being added to and removed from the instance.
+	The `added` callback is called immediately for all children of the instance.
+	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
+	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
+]=]
+function Module.child(parent: Instance, added: (child: Instance) -> ()?, removed: (child: Instance) -> ()?)
+	local addedConnection: RBXScriptConnection?, removedConnection: RBXScriptConnection?
+	if added then
+		for _, child in parent:GetChildren() do
+			added(child)
+		end
+		addedConnection = parent.ChildAdded:Connect(added)
+	end
+	
+	if removed then
+		removedConnection = parent.ChildRemoved:Connect(removed)
+	end
+	
+	return addedConnection, removedConnection
+end
+
+--[=[
+	Listens for descendants being added to and removed from the instance.
+	The `added` callback is called immediately for all children of the instance.
+	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
+	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
+]=]
+function Module.descendant(ancestor: Instance, added: (descendant: Instance) -> ()?, removed: (descendant: Instance) -> ()?)
+	local addedConnection: RBXScriptConnection?, removedConnection: RBXScriptConnection?
+	if added then
+		for _, descendant in ancestor:GetDescendants() do
+			added(descendant)
+		end
+		addedConnection = ancestor.DescendantAdded:Connect(added)
+	end
+
+	if removed then
+		removedConnection = ancestor.DescendantRemoving:Connect(removed)
+	end
+
+	return addedConnection, removedConnection
+end
+
+--[=[
 	Listens for the specified property being changed on the instance.
 	The value from the last time the property was changed is passed to the callback.
 	The callback is called with the current value immediately (passing the current value for the old one), unless `skip` is set to true.
@@ -552,7 +598,10 @@ function Module.valueChanged<T>(instance: ValueBase, callback: (new: T, old: T) 
 	return connection
 end
 
-local function disconnect(connection: Connection)
+--[=[
+	Disconnects the connection.
+]=]
+local function disconnect(connection: any)
 	if
 		typeof(connection) == 'RBXScriptConnection'
 		or type(connection) == 'table' and type(connection.Disconnect) == 'function'
@@ -567,8 +616,6 @@ local function disconnect(connection: Connection)
 		pcall(connection.Destroy, connection)
 	elseif typeof(connection) == 'function' then
 		connection()
-	else
-		warn("Didn't disconnect")
 	end
 end
 
@@ -576,10 +623,10 @@ end
 	Recursively disconnects all connections in the table. Removes all entries except for nested tables.
 	Warning: If the table contains a yielding function, this function will yield!
 ]=]
-function Module.clean(connections: { [any]: Connection })
+function Module.clean(connections: Table)
 	for key, connection in connections do
 		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-			Module.clean(connection :: { [any]: Connection })
+			Module.clean(connection)
 		else
 			disconnect(connection)
 			connections[key] = nil
@@ -591,7 +638,7 @@ end
 	Similar to `clean`, but removes nested tables.
 	Warning: If the table contains a yielding function, this function will yield!
 ]=]
-function Module.empty(connections: { [any]: Connection })
+function Module.empty(connections: Table)
 	Module.clean(connections)
 	table.clear(connections)
 end
@@ -601,7 +648,7 @@ end
 	Does not remove the connection if it's a nested table.
 	Warning: If the table contains a yielding function, this function will yield!
 ]=]
-function Module.cleanKeys<T...>(connections: { [any]: Connection }, ...: T...)
+function Module.cleanKeys(connections: Table, ...: any)
 	-- Type ... as generic so user code gets a warning when it doesn't specify the parameter
 	-- However, don't give the `connections` table an indexer of `[T]`, since that screws with
 	-- the type inference of tables passed to this function
@@ -609,7 +656,7 @@ function Module.cleanKeys<T...>(connections: { [any]: Connection }, ...: T...)
 	for _, key: any in table.pack(...) do
 		local connection = connections[key]
 		if type(connection) == 'table' and type(connection.Disconnect) ~= 'function' then
-			Module.clean(connection :: { [any]: Connection })
+			Module.clean(connection)
 		elseif connection then
 			disconnect(connection)
 			connections[key] = nil
@@ -621,13 +668,20 @@ end
 	Similar to `cleanKeys`, but removes the connection regardless of if it's a nested table.
 	Warning: If the table contains a yielding function, this function will yield!
 ]=]
-function Module.emptyKeys<T...>(connections: { [any]: Connection }, ...: T...)
+function Module.emptyKeys(connections: Table, ...: any)
 	Module.cleanKeys(connections, ...)
 	for _, key: any in table.pack(...) do
 		connections[key] = nil
 	end
 end
 
-export type Connection = any
+--[=[
+	Create and append a new connection table to a pre-existing one
+]=]
+function Module.extend(connections: Table)
+	local newConnections = {}
+	table.insert(connections, newConnections)
+	return newConnections
+end
 
 return Module
