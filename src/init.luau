@@ -411,6 +411,38 @@ function Module.tag(tag: string, added: (Instance) -> ()?, removed: (Instance) -
 end
 
 --[=[
+	Listens for the specified tag being added to and removed from the instance.
+	The `added` callback is called immediately if the tag is present on the instance.
+	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
+	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
+]=]
+function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -> ()?, removed: (Instance) -> ()?, skip: boolean?)
+	local removedConnection: RBXScriptConnection?
+	if removed then
+		removedConnection = CollectionService:GetInstanceRemovedSignal(tag):Connect(function(other)
+			if other == instance then
+				removed(instance)
+			end
+		end)
+	end
+
+	local addedConnection: RBXScriptConnection?
+	if added then
+		addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(function(other)
+			if other == instance then
+				added(instance)
+			end
+		end)
+
+		if not skip and instance:HasTag(tag) then
+			added(instance)
+		end
+	end
+
+	return addedConnection, removedConnection
+end
+
+--[=[
 	Listens for players being added to and removed from teams.
 	The `added` callback is called with every player in the team immediately.
 	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
@@ -434,38 +466,6 @@ function Module.team(team: Team, added: (Player) -> ()?, removed: (Player) -> ()
 end
 
 --[=[
-	Listens for the specified tag being added to and removed from the instance.
-	The `added` callback is called immediately if the tag is present on the instance.
-	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
-	If `removing` is specified, returns the `InstanceRemoved` connection as the second return value.
-]=]
-function Module.tagInstance(instance: Instance, tag: string, added: (Instance) -> ()?, removed: (Instance) -> ()?)
-	local removedConnection: RBXScriptConnection?
-	if removed then
-		removedConnection = CollectionService:GetInstanceRemovedSignal(tag):Connect(function(other)
-			if other == instance then
-				removed(instance)
-			end
-		end)
-	end
-
-	local addedConnection: RBXScriptConnection?
-	if added then
-		addedConnection = CollectionService:GetInstanceAddedSignal(tag):Connect(function(other)
-			if other == instance then
-				added(instance)
-			end
-		end)
-
-		for _, tagged in CollectionService:GetTagged(tag) do
-			added(tagged)
-		end
-	end
-
-	return addedConnection, removedConnection
-end
-
---[=[
 	Listens for children being added to and removed from the instance.
 	The `added` callback is called immediately for all children of the instance.
 	If `added` is specified, returns the `InstanceAdded` connection as the first return value.
@@ -479,11 +479,11 @@ function Module.child(parent: Instance, added: (child: Instance) -> ()?, removed
 		end
 		addedConnection = parent.ChildAdded:Connect(added)
 	end
-	
+
 	if removed then
 		removedConnection = parent.ChildRemoved:Connect(removed)
 	end
-	
+
 	return addedConnection, removedConnection
 end
 
